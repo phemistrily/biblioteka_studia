@@ -20,7 +20,10 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 public class AddFilesController {
     private Integer bookId;
@@ -71,7 +74,7 @@ public class AddFilesController {
         primaryStage.getChildren().setAll(pane);
     }
 
-    public void addFiles(ActionEvent actionEvent) throws SQLException {
+    public void addFiles(ActionEvent actionEvent) throws SQLException, ExecutionException, InterruptedException {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Dodaj pliki książki");
         Stage stage = (Stage)primaryStage.getScene().getWindow();
@@ -86,21 +89,17 @@ public class AddFilesController {
         Runnable[] files = new Runnable[fileCount];
         Thread[] threads = new Thread[fileCount];
 
-        for (File file : list)
-        {
-            Desktop desktop = Desktop.getDesktop();
-            //desktop.open(file);
-            files[counter] = new SendFile(this.bookId, lastPage, file);
+        List<CompletableFuture<Void>> listofFeatures = new ArrayList<>();
+        for (File file : list) {
+            Integer finalLastPage = lastPage;
+            CompletableFuture<Void> sendFileFeature = new CompletableFuture().runAsync(() ->  new SendFile(this.bookId, finalLastPage, file).run());
+            listofFeatures.add(sendFileFeature);
             lastPage +=1;
-            threads[counter] = new Thread(files[counter]);
-            threads[counter].start();
             counter++;
         }
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        CompletableFuture<Void> allFutures = CompletableFuture
+                .allOf(listofFeatures.toArray(new CompletableFuture[listofFeatures.size()]));
+        allFutures.get();
         this.getPages();
         pagesList.setItems(pageListModel);
     }
